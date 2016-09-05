@@ -6,39 +6,37 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * 群聊服务器
- * 	对于每一次的socket连接均创建一个线程处理
+ * 	借鉴ExecutorService API实用线程池的方式,
+ *  不在每次连接均创建一个线程，提升服务器的性能。
  * @author QnMy
  *
  */
 public class Server implements Runnable{
 	private ServerSocket sc;
 	private List<Socket> clientList;
+	private final ExecutorService pool;
 	
-	public Server(){
-		try {
-			 sc = new ServerSocket(6787);
-			 clientList  = new ArrayList<Socket>();
-		} catch (IOException e) {
-			System.out.println("Server socket create exception!");
-		}
+	public Server() throws IOException{
+		 sc = new ServerSocket(6787);
+		 //考虑线程安全问题,使用CopyOnWriteArrayList存放客户端socket
+		 clientList  = new CopyOnWriteArrayList<Socket>();
+		 //初始化线程池
+		 pool = Executors.newFixedThreadPool(50);
 	}
 
 	@Override
 	public void run() {
-		while(true){
+		for(;;){
 			try {
 				Socket s = sc.accept();
-				System.out.println("客户端: " + s.getInetAddress() + " 端口号 "
-						+ s.getPort() + " 加入连接");
-				
-				//将客户端端口号加入客户端集合列表   用于群发消息
 				clientList.add(s);
-				
-				//对于每一次的连接均创建一个新的线程处理
-				new Thread(new ConnectClientThread(s)).start();
+				pool.execute(new ConnectClientThread(s));
 			} catch (IOException e) {
 				System.out.println("客户端加入连接失败");
 			}
@@ -96,7 +94,7 @@ public class Server implements Runnable{
 	}
 	
 	//启动群聊服务器
-	public static void main(String[] args) {
+	public static void main(String[] args) throws IOException {
 		new Thread(new Server()).start();
 		System.out.println("服务器启动成功!");
 	}

@@ -39,19 +39,12 @@ public class ClientJFrame extends javax.swing.JFrame {
 	private JTextArea jTextArea1;
 	private JScrollPane jScrollPane1;
 	private JTextField jTextField1;
-	private Socket s = null;
+	private Socket s;
 
 	private Img jPanel1 = new Img(new ImageIcon("./src/image/chat1.png").getImage());
 	
 	private Img contentPane = new Img(new ImageIcon("./src/image/chat.gif").getImage());
 	
-//	public static void main(String[] args) {
-//		
-////		NewJFrameClient inst = new NewJFrameClient(1);
-////		inst.setLocationRelativeTo(null);
-////		inst.setVisible(true);
-//	
-//	}
 	public static void main(String[] args) {
 		ClientJFrame inst = new ClientJFrame();
 		inst.setLocationRelativeTo(null);
@@ -137,12 +130,11 @@ public class ClientJFrame extends javax.swing.JFrame {
 			try {
 				//发送信息
 				OutputStream os = s.getOutputStream();
-				os.write(str.getBytes());
-				
+				os.write(str.getBytes("UTF-8"));
 				jTextField1.setText("");
 				jTextField1.requestFocus();
 			} catch (IOException e) {
-				e.printStackTrace();
+				System.out.println("socket exception");
 			}
 		}
 	}
@@ -157,17 +149,16 @@ public class ClientJFrame extends javax.swing.JFrame {
 			while(true){
 				try {
 					InputStream is = s.getInputStream();
-					byte[] byteArr = new byte[1024];
-					StringBuilder stringBuilder = new StringBuilder();
+					byte[] byteArr = new byte[2 * 1024];
 					is.read(byteArr);
-					String s = new String(byteArr, "UTF-8");
+					String s = new String(byteArr, "UTF-8").trim();
 					String dateTime = Calendar.getInstance().getTime().toLocaleString();
 					jTextArea1.append(dateTime + "\n消息:\n " + s + "\n");
 					//设置滚动条置于文本区最下方
 					jTextArea1.setCaretPosition(jTextArea1.getText().length());
 				} catch (IOException e) {
+					System.out.println("socket exception");
 					break;
-//					e.printStackTrace();
 				}	
 			}
 		}

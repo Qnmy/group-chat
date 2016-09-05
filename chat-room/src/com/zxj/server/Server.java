@@ -31,7 +31,8 @@ public class Server implements Runnable{
 		while(true){
 			try {
 				Socket s = sc.accept();
-				System.out.println("客户端: " + s.getPort() + " 加入连接");
+				System.out.println("客户端: " + s.getInetAddress() + " 端口号 "
+						+ s.getPort() + " 加入连接");
 				
 				//将客户端端口号加入客户端集合列表   用于群发消息
 				clientList.add(s);
@@ -39,7 +40,7 @@ public class Server implements Runnable{
 				//对于每一次的连接均创建一个新的线程处理
 				new Thread(new ConnectClientThread(s)).start();
 			} catch (IOException e) {
-				System.out.println("客户端加连接失败");
+				System.out.println("客户端加入连接失败");
 			}
 		}
 	}
@@ -60,14 +61,35 @@ public class Server implements Runnable{
 		public void run() {
 			try {
 				InputStream is = s.getInputStream();
-				byte[] byteArr = new byte[1024];
-				while(-1 != is.read(byteArr)){
+				/**
+				 * 每次读取指定大小的数据
+				 * 	 read() 为阻塞式方法
+				 *   	This method blocks until input data is available,
+				 *    	end of file is detected, or an exception is thrown.
+				 * 	 -1 != is.read() 死循环
+				 */
+				byte[] byteArray = new byte[2 * 1024];
+				while(-1 != is.read(byteArray) ){
 					for(Socket clientSocket : clientList){
-						clientSocket.getOutputStream().write(byteArr);
+						clientSocket.getOutputStream().write(byteArray);
 					}
 				}
+				
+				/*
+				 * 以下的现实会占用CPU较多
+				 * 
+				 * while(true){
+					int arraySize = is.available();
+					if(0 != arraySize){
+						byte[] byteArr = new byte[arraySize];
+						is.read(byteArr);
+						for(Socket clientSocket : clientList){
+							clientSocket.getOutputStream().write(byteArr);
+						}
+					}
+				}*/
 			} catch (IOException e) {
-				e.printStackTrace();
+				System.out.println("客户端: " + s.getInetAddress() + "异常");
 			}
 		}
 		

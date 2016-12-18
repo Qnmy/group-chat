@@ -146,7 +146,7 @@ public class ClientJFrame extends javax.swing.JFrame {
 					selector.select();//blocking selection operation
 				} catch (IOException e1) {
 					e1.printStackTrace();
-					break;
+					return;
 				}
 				Set<SelectionKey> set = selector.selectedKeys();
 				Iterator<SelectionKey> iter = set.iterator();

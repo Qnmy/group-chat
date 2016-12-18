@@ -7,17 +7,23 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class NioServer {
 
 	/**
-	 * 存放已连接的通道
+	 * 存放已连接的通道(涉及多线程操作，使用CopyOnWriteArrayList保证线程安全)
 	 */
-	private List<SocketChannel> clientChannelList = new ArrayList<SocketChannel>();
+	private List<SocketChannel> clientChannelList = new CopyOnWriteArrayList<SocketChannel>();
+	/**
+	 * 使用线程池来处理客户端的读写请求
+	 */
+	private ExecutorService pool = Executors.newFixedThreadPool(50);
 	
 	private void startup() throws IOException{
 		Selector sel = Selector.open();
@@ -40,38 +46,10 @@ public class NioServer {
 					sc.register(sel, SelectionKey.OP_READ);
 					System.out.println("connect " + sc.getRemoteAddress());
 					clientChannelList.add(sc);
-					System.out.println("add " + clientChannelList.size());
 					iter.remove();
 				} else if ((key.readyOps() & SelectionKey.OP_READ)
 				          == SelectionKey.OP_READ){
-					SocketChannel sc = (SocketChannel) key.channel();
-					System.out.println(sc.isConnected());
-					ByteBuffer bf = ByteBuffer.allocate(1024);
-					while(true){
-						bf.clear();
-						int r = 0;
-						try {
-							 r = sc.read(bf);
-						} catch (Exception e) {
-							System.err.println("IOException 客户端强制关闭");
-							clientChannelList.remove(sc);
-							sc.close();
-							break;
-						} 
-						if(r <= 0){
-							break;
-						}
-						bf.flip();
-						byte[] msgByte = new byte[bf.limit()];
-						bf.get(msgByte);
-						System.out.println(String.format("转发给当前  %d 个客户端", clientChannelList.size()));
-						for(SocketChannel csc : clientChannelList){
-							bf.clear();
-							bf.put(msgByte);
-							bf.flip();
-							csc.write(bf);
-						}
-					}
+					pool.execute(new HandleClient((SocketChannel)key.channel()));
 					iter.remove();
 				}
 			}
@@ -80,5 +58,54 @@ public class NioServer {
 	
 	public static void main(String[] args) throws IOException {
 		new NioServer().startup();
+	}
+	
+	class HandleClient implements Runnable{
+		private SocketChannel sc;
+		
+		public HandleClient(SocketChannel sc){
+			this.sc = sc;
+		}
+		
+		@Override
+		public void run() {
+			ByteBuffer bf = ByteBuffer.allocate(1024);
+			while(true){
+				bf.clear();
+				int r = 0;
+				try {
+					 r = sc.read(bf);
+				} catch (Exception e) {
+					System.err.println("IOException 客户端强制关闭");
+					clientChannelList.remove(sc);
+					try {
+						sc.close();
+					} catch (IOException e1) {
+						e1.printStackTrace();
+						return;
+					}
+					break;
+				} 
+				if(r <= 0){
+					break;
+				}
+				bf.flip();
+				byte[] msgByte = new byte[bf.limit()];
+				bf.get(msgByte);
+				System.out.println(String.format("转发给当前  %d 个客户端", clientChannelList.size()));
+				for(SocketChannel csc : clientChannelList){
+					bf.clear();
+					bf.put(msgByte);
+					bf.flip();
+					try {
+						csc.write(bf);
+					} catch (IOException e) {
+						e.printStackTrace();
+						return;
+					}
+				}
+			}
+		}
+		
 	}
 }
